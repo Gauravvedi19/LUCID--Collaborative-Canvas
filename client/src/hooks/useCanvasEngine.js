@@ -2,10 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 // Use the Vercel/Render URL in production, or localhost in development
-const SOCKET_URL = import.meta.env.MODE === 'production'
-  ? 'https://lucid-collaborative-canvas.onrender.com' // 🔴 REPLACE THIS with your actual Render Backend URL
-  : 'http://localhost:5173';
-// const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'https://lucid-collaborative-canvas.onrender.com';
+const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'https://lucid-collaborative-canvas.onrender.com';
 const VIRTUAL_WIDTH = 1920;
 const VIRTUAL_HEIGHT = 1080;
 
