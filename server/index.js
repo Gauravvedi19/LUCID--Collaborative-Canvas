@@ -6,11 +6,11 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
-const server = http.createServer(app);
+const httpServer = http.createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ["http://localhost:5173", "https://lucid-collaborative-canvas.vercel.app/"],
+    origin: ["http://localhost:5173", "https://lucid-collaborative-canvas.vercel.app"],
     methods: ["GET", "POST"]
   }
 });
