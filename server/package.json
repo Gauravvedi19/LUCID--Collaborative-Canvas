@@ -1,19 +1,21 @@
 {
-  "name": "server",
+  "name": "lucid-server",
   "version": "1.0.0",
-  "description": "",
+  "description": "Backend for Lucid Whiteboard",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^5.2.1",
-    "nodemon": "^3.1.11",
-    "socket.io": "^4.8.3"
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   }
 }
