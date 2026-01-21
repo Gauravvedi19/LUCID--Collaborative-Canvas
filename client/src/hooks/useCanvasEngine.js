@@ -1,8 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:3001';
-
+const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'https://lucid-collaborative-canvas.onrender.com';
 const VIRTUAL_WIDTH = 1920;
 const VIRTUAL_HEIGHT = 1080;
 
