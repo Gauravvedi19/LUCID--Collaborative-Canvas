@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
+// Use the Vercel/Render URL in production, or localhost in development
 const SOCKET_URL = import.meta.env.VITE_SERVER_URL || 'https://lucid-collaborative-canvas.onrender.com';
 const VIRTUAL_WIDTH = 1920;
 const VIRTUAL_HEIGHT = 1080;
@@ -13,14 +14,16 @@ export const useCanvasEngine = (userName, isDarkMode) => {
   const isDarkModeRef = useRef(isDarkMode);
   const isDrawing = useRef(false);
   const currentStroke = useRef([]);
-  const history = useRef([]);
+  const history = useRef([]); // Stores the strokes
   
   const [cursors, setCursors] = useState({});
   const [users, setUsers] = useState({});
   const [messages, setMessages] = useState([]);
 
-  useEffect(() => {isDarkModeRef.current = isDarkMode;}, [isDarkMode]);
+  // Keep ref updated without triggering re-renders
+  useEffect(() => { isDarkModeRef.current = isDarkMode; }, [isDarkMode]);
 
+  // Helper: Flip colors based on dark mode preference
   const getEffectiveColor = useCallback((color) => {
     const dark = isDarkModeRef.current;
     if (dark && color === '#000000') return '#FFFFFF';
@@ -28,6 +31,7 @@ export const useCanvasEngine = (userName, isDarkMode) => {
     return color;
   }, []);
 
+  // Helper: Scale mouse coordinates to virtual 1920x1080 grid
   const getCoordinates = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -43,6 +47,7 @@ export const useCanvasEngine = (userName, isDarkMode) => {
     };
   };
 
+  // Helper: Draw a single stroke
   const drawStroke = useCallback((ctx, points, color, width) => {
     if (points.length < 1) return;
     ctx.beginPath();
@@ -60,10 +65,12 @@ export const useCanvasEngine = (userName, isDarkMode) => {
     ctx.lineJoin = 'round';
 
     if (points.length === 1) {
+      // Draw a dot
       ctx.fillStyle = color === 'erase' ? 'rgba(0,0,0,1)' : getEffectiveColor(color);
       ctx.arc(points[0].x, points[0].y, width / 2, 0, Math.PI * 2);
       if (color !== 'erase') ctx.fill(); else ctx.stroke();
     } else {
+      // Draw a line
       ctx.moveTo(points[0].x, points[0].y);
       for (let i = 1; i < points.length; i++) {
         ctx.lineTo(points[i].x, points[i].y);
@@ -73,6 +80,7 @@ export const useCanvasEngine = (userName, isDarkMode) => {
     ctx.globalCompositeOperation = 'source-over';
   }, [getEffectiveColor]);
 
+  // Helper: Clear and redraw everything (for Undo/Redo/Resize)
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
@@ -84,42 +92,58 @@ export const useCanvasEngine = (userName, isDarkMode) => {
     });
   }, [drawStroke]);
 
+  // Re-draw if Dark Mode toggles
   useEffect(() => {
     if (ctxRef.current) redrawCanvas();
   }, [isDarkMode, redrawCanvas]);
 
 
+  // --- MAIN SOCKET LOGIC ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // 1. Setup Canvas Resolution
     canvas.width = VIRTUAL_WIDTH;
     canvas.height = VIRTUAL_HEIGHT;
-
 
     const ctx = canvas.getContext('2d');
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctxRef.current = ctx;
 
+    // 2. Draw existing history if component re-mounted
     if (history.current.length > 0) redrawCanvas();
 
+    // 3. Connect Socket
     const socket = io(SOCKET_URL);
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      console.log("Connected to Socket Server");
       socket.emit('join', { name: userName });
     });
 
+    // --- CRITICAL FIX: LISTEN FOR HISTORY RESTORE ---
+    socket.on('restore_history', (serverHistory) => {
+      console.log("📥 History received:", serverHistory.length, "strokes");
+      history.current = serverHistory;
+      redrawCanvas();
+    });
+
+    // Listen for global state updates (Undo/Redo/Clear)
     socket.on('canvas_state', (serverHistory) => {
       history.current = serverHistory;
       redrawCanvas();
     });
 
+    // Listen for new committed strokes from others
     socket.on('stroke_commited', (stroke) => {
       history.current.push(stroke);
       drawStroke(ctxRef.current, stroke.points, stroke.color, stroke.width);
     });
 
+    // Listen for live "drawing in progress" from others
     socket.on('drawing_live', ({ p1, p2, color, width }) => {
       const ctx = ctxRef.current;
       ctx.beginPath();
@@ -137,12 +161,14 @@ export const useCanvasEngine = (userName, isDarkMode) => {
       ctx.globalCompositeOperation = 'source-over';
     });
 
+    // Cursors
     socket.on('cursor_update', (serverCursors) => {
       setUsers(serverCursors);
       const { [socket.id]: myCursor, ...others } = serverCursors;
       setCursors(others);
     });
 
+    // Chat
     socket.on('chat_message', (msg) => {
       setMessages((prev) => [...prev, msg]);
     });
@@ -153,11 +179,14 @@ export const useCanvasEngine = (userName, isDarkMode) => {
   }, [redrawCanvas, drawStroke, getEffectiveColor, userName]);
 
 
+  // --- USER ACTIONS ---
+
   const startDrawing = (e, color, width) => {
     isDrawing.current = true;
-    const { x, y } = getCoordinates(e); // Use Scaled Coords
+    const { x, y } = getCoordinates(e); 
     currentStroke.current = [{ x, y }];
     
+    // Draw the initial dot locally
     const ctx = ctxRef.current;
     ctx.beginPath();
     if (color === 'erase') {
@@ -175,10 +204,10 @@ export const useCanvasEngine = (userName, isDarkMode) => {
   const draw = (e, color, width) => {
     const { x, y } = getCoordinates(e);
 
+    // 1. Broadcast Cursor Position (Normalized 0-1)
     if (socketRef.current) {
         const normX = x / VIRTUAL_WIDTH; 
         const normY = y / VIRTUAL_HEIGHT;
-        
         socketRef.current.emit('cursor_move', { 
             x: normX, y: normY, name: userName 
         });
@@ -186,6 +215,7 @@ export const useCanvasEngine = (userName, isDarkMode) => {
 
     if (!isDrawing.current) return;
 
+    // 2. Draw locally
     currentStroke.current.push({ x, y });
     const points = currentStroke.current;
     const lastPoint = points[points.length - 2];
@@ -205,6 +235,7 @@ export const useCanvasEngine = (userName, isDarkMode) => {
     ctx.stroke();
     ctx.globalCompositeOperation = 'source-over';
 
+    // 3. Emit live drawing segment
     if (socketRef.current) {
       socketRef.current.emit('drawing_live', {
         p1: lastPoint,
@@ -218,6 +249,8 @@ export const useCanvasEngine = (userName, isDarkMode) => {
   const endDrawing = (color, width) => {
     if (!isDrawing.current) return;
     isDrawing.current = false;
+    
+    // Commit the full stroke
     if (currentStroke.current.length > 0) {
       const newStroke = {
         points: [...currentStroke.current],
@@ -236,9 +269,11 @@ export const useCanvasEngine = (userName, isDarkMode) => {
       color: '#' + Math.floor(Math.random()*16777215).toString(16), 
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
+    // Add locally immediately for speed
     setMessages((prev) => [...prev, { ...msgData, isMe: true }]);
     if (socketRef.current) socketRef.current.emit('chat_message', msgData);
   };
+
   const undo = () => { if (socketRef.current) socketRef.current.emit('undo'); };
   const redo = () => { if (socketRef.current) socketRef.current.emit('redo'); };
   const clearCanvas = () => { if (socketRef.current) socketRef.current.emit('clear'); };
