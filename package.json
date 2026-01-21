@@ -1,0 +1,14 @@
+{
+  "name": "lucid-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "concurrently -n \"CLIENT,SERVER\" -c \"cyan,magenta\" \"npm run client\" \"npm run server\"",
+    "client": "npm run dev --prefix client",
+    "server": "npm start --prefix server",
+    "install:all": "npm install && npm install --prefix client && npm install --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
