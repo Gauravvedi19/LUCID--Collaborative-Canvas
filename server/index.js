@@ -8,9 +8,9 @@ app.use(cors());
 
 const server = http.createServer(app);
 
-const io = new Server(server, {
+const io = new Server(httpServer, {
   cors: {
-    origin: "*", 
+    origin: ["http://localhost:5173", "https://your-vercel-app-name.vercel.app"],
     methods: ["GET", "POST"]
   }
 });
